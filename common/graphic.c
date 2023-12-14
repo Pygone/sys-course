@@ -166,12 +166,11 @@ void fb_draw_rect(int x, int y, int w, int h, int color)
 	if (w <= 0 || h <= 0) return;
 	int* buf = _begin_draw(x, y, w, h);
 /*---------------------------------------------------*/
-	int* dst = buf + y * SCREEN_WIDTH + x;
-	int ww = w;
-	while (h-- > 0) {
-		int n = ww;
-		while (n-- > 0) *dst++ = color;
-		dst += SCREEN_WIDTH - ww;
+	for(int j=0; j<h; j++){
+		int pos = (y+j)*SCREEN_WIDTH;
+		for(int i=x; i<w+x; i++){
+			*(buf +pos +i) = color;
+		}
 	}
 
 /*---------------------------------------------------*/
@@ -180,23 +179,27 @@ void fb_draw_rect(int x, int y, int w, int h, int color)
 
 void fb_draw_line(int x1, int y1, int x2, int y2, int color)
 {
-	int dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
-	int dy = abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-	int err = (dx > dy ? dx : -dy) / 2, e2;
+	int dx = abs(x2 - x1);
+	int dy = abs(y2 - y1);
+	int sx = (x1 < x2) ? 1 : -1;
+	int sy = (y1 < y2) ? 1 : -1;
+	int err = dx - dy;
+	int* buf = _begin_draw(x1, y1, abs(x2 - x1) + 1, abs(y2 - y1) + 1);
+	while(1) {
+		*(buf + y1 * SCREEN_WIDTH + x1) = color;
+		if (x1 == x2 && y1 == y2) {
+			break;
+		}
 
-	int minX = x1 < x2 ? x1 : x2;
-	int minY = y1 < y2 ? y1 : y2;
-	int width = abs(x2 - x1);
-	int height = abs(y2 - y1);
-
-	int* buf = _begin_draw(minX, minY, width, height);
-
-	for (;;) {
-		*(buf + (y1 - minY) * width + (x1 - minX)) = color;
-		if (x1 == x2 && y1 == y2) break;
-		e2 = err;
-		if (e2 > -dx) { err -= dy; x1 += sx; }
-		if (e2 < dy) { err += dx; y1 += sy; }
+		int e2 = 2 * err;
+		if (e2 > -dy) {
+			err -= dy;
+			x1 += sx;
+		}
+		if (e2 < dx) {
+			err += dx;
+			y1 += sy;
+		}
 	}
 }
 
@@ -239,67 +242,67 @@ void fb_draw_image(int x, int y, fb_image* image, int color)
 
 	if (image->color_type == FB_COLOR_RGB_8880) /*lab3: jpg*/
 	{
-		int y0, y3;
-		char* dst = (char*) (buf + y * SCREEN_WIDTH + x);
-		char* src = image->content;
+		int y0, y3, w_4 = w * 4, SCREEN_WIDTH_4 = SCREEN_WIDTH * 4;
+		src = image->content;
 		for (y0 = y, y3 = iy; y0 < y + h; y0++, y3++) {
-			memcpy(dst, src, w * 4);
-			dst += SCREEN_WIDTH * 4;
-			src += w * 4;
+			memcpy(dst, src, w_4);
+			dst += SCREEN_WIDTH_4;
+			src += w_4;
 		}
 		return;
-	} else if (image->color_type == FB_COLOR_RGBA_8888) /*lab3: png*/
+	}else if (image->color_type == FB_COLOR_RGBA_8888) /*lab3: png*/
 	{
-		int imageX, imageY, screenX, screenY;
-		unsigned char alphaValue;
-		char* colorData, * tempImageData;
-		for (screenY = y, imageY = iy; screenY < y + h; screenY++, imageY++) {
-			char* rowColorData = (char*) (buf + screenY * SCREEN_WIDTH);
-			char* rowTempImageData = image->content + imageY * image->pixel_w * 4;
-			for (screenX = x, imageX = ix; screenX < x + w; screenX++, imageX++) {
-				colorData = rowColorData + screenX;
-				tempImageData = rowTempImageData + imageX * 4;
-				alphaValue = (unsigned char) (tempImageData[3]);
-				switch (alphaValue) {
-					case 0:
-						break;
-					case 255:
-						colorData[0] = tempImageData[0];
-						colorData[1] = tempImageData[1];
-						colorData[2] = tempImageData[2];
-						break;
-					default:
-						colorData[0] += (((tempImageData[0] - colorData[0]) * alphaValue) >> 8);
-						colorData[1] += (((tempImageData[1] - colorData[1]) * alphaValue) >> 8);
-						colorData[2] += (((tempImageData[2] - colorData[2]) * alphaValue) >> 8);
+		int x0, y0, x3, y3;
+		unsigned char alpha;
+		char* colord, *temp;
+		for(y0=y, y3=iy;y0<y+h;y0++,y3++){
+			int pos = y3*image->pixel_w*4;
+			int pos2 = y0*SCREEN_WIDTH;
+			for(x0=x, x3=ix;x0<x+w;x0++,x3++){
+				colord = (char*)(buf+pos2+x0);
+				temp = image->content+pos+x3*4;
+				alpha = (unsigned char)(temp[3]);
+				switch (alpha){
+				case 0: break;
+				case 255:
+					colord[0] = temp[0];
+					colord[1] = temp[1];
+					colord[2] = temp[2];
+					break;
+				default:
+					colord[0] += (((temp[0] - colord[0]) * alpha) >> 8);
+					colord[1] += (((temp[1] - colord[1]) * alpha) >> 8);
+					colord[2] += (((temp[2] - colord[2]) * alpha) >> 8);
 				}
 			}
 		}
 		return;
-	} else if (image->color_type == FB_COLOR_ALPHA_8) /*lab3: font*/
+	} else if(image->color_type == FB_COLOR_ALPHA_8) /*lab3: font*/
 	{
-		int screenX, screenY, imageX, imageY;
-		unsigned char alphaChannel;
-		char* colorData, * tempImageData;
-		for (screenY = y, imageY = iy; screenY < y + h; screenY++, imageY++) {
-			char* rowColorData = (char*) (buf + screenY * SCREEN_WIDTH);
-			char* rowTempImageData = image->content + imageY * image->pixel_w;
-			for (screenX = x, imageX = ix; screenX < x + w; screenX++, imageX++) {
-				colorData = rowColorData + screenX;
-				tempImageData = rowTempImageData + imageX;
-				alphaChannel = (unsigned char) (*tempImageData);
-				switch (alphaChannel) {
-					case 0:
-						break;
-					case 255:
-						colorData[0] = (color & 0xff);
-						colorData[1] = (color & 0xff00) >> 8;
-						colorData[2] = (color & 0xff0000) >> 16;
-						break;
-					default:
-						colorData[0] += ((((color & 0xff) - colorData[0]) * alphaChannel) >> 8);
-						colorData[1] += (((((color & 0xff00) >> 8) - colorData[1]) * alphaChannel) >> 8);
-						colorData[2] += (((((color & 0xff0000) >> 16) - colorData[2]) * alphaChannel) >> 8);
+		int r = color & 0xff;
+		int g = (color & 0xff00) >> 8;
+		int b = (color & 0xff0000) >> 16;
+		char* colord, *temp;
+		buf += (y-1) * SCREEN_WIDTH + x;
+		int width = image->pixel_w * (iy-1);
+		for(int i=0;i<h;i++){
+			buf += SCREEN_WIDTH;
+			width += image->pixel_w;
+			for(int j=0;j<w;j++){
+				colord = (char*)(buf+j);
+				temp = image->content+width+ix+j;
+				unsigned char alpha = *temp;
+				switch (alpha){
+				case 0: break;
+				case 255:
+					colord[0] = r;
+					colord[1] = g;
+					colord[2] = b;
+					break;
+				default:
+					colord[0] += (((r - colord[0]) * alpha) >> 8);
+					colord[1] += (((g- colord[1]) * alpha) >> 8);
+					colord[2] += (((b - colord[2]) * alpha) >> 8);
 				}
 			}
 		}
