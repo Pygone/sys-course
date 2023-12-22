@@ -242,69 +242,75 @@ void fb_draw_image(int x, int y, fb_image* image, int color)
 
 	if (image->color_type == FB_COLOR_RGB_8880) /*lab3: jpg*/
 	{
-		int y0, y3, w_4 = w * 4, SCREEN_WIDTH_4 = SCREEN_WIDTH * 4;
-		src = image->content;
-		for (y0 = y, y3 = iy; y0 < y + h; y0++, y3++) {
+		int orign_w_4 = image->pixel_w << 2;
+		int w_4 = w << 2, SCREEN_WIDTH_4 = SCREEN_WIDTH << 2;
+		src = image->content + ((iy * image->pixel_w + ix) << 2);
+		for (int i = 0; i < h; i++) {
 			memcpy(dst, src, w_4);
 			dst += SCREEN_WIDTH_4;
-			src += w_4;
+			src += orign_w_4;
 		}
 		return;
 	}else if (image->color_type == FB_COLOR_RGBA_8888) /*lab3: png*/
 	{
-		int x0, y0, x3, y3;
 		unsigned char alpha;
-		char* colord, *temp;
-		for(y0=y, y3=iy;y0<y+h;y0++,y3++){
-			int pos = y3*image->pixel_w*4;
-			int pos2 = y0*SCREEN_WIDTH;
-			for(x0=x, x3=ix;x0<x+w;x0++,x3++){
-				colord = (char*)(buf+pos2+x0);
-				temp = image->content+pos+x3*4;
-				alpha = (unsigned char)(temp[3]);
+		dst = (char*) (buf + y * SCREEN_WIDTH + x);
+		src = image->content + ((iy * image->pixel_w + ix) << 2);
+		char* src_line = src;
+		char* dst_line = dst;
+		for(int i=0;i<h;i++){
+			src_line = src;
+			dst_line = dst;
+			for(int j=0;j<w;j++){
+				alpha = (unsigned char)(*(src_line+3));
 				switch (alpha){
 				case 0: break;
 				case 255:
-					colord[0] = temp[0];
-					colord[1] = temp[1];
-					colord[2] = temp[2];
+					memcpy(dst_line, src_line, 3);
 					break;
 				default:
-					colord[0] += (((temp[0] - colord[0]) * alpha) >> 8);
-					colord[1] += (((temp[1] - colord[1]) * alpha) >> 8);
-					colord[2] += (((temp[2] - colord[2]) * alpha) >> 8);
+					*(dst_line) += (((*(src_line) - *(dst_line)) * alpha) >> 8);
+					*(dst_line+1) += (((*(src_line+1) - *(dst_line+1)) * alpha) >> 8);
+					*(dst_line+2) += (((*(src_line+2) - *(dst_line+2)) * alpha) >> 8);
 				}
+				dst_line += 4;
+				src_line += 4;
 			}
+		src += (image->pixel_w << 2);
+		dst += (SCREEN_WIDTH  << 2);
 		}
 		return;
 	} else if(image->color_type == FB_COLOR_ALPHA_8) /*lab3: font*/
 	{
-		int r = color & 0xff;
-		int g = (color & 0xff00) >> 8;
-		int b = (color & 0xff0000) >> 16;
-		char* colord, *temp;
-		buf += (y-1) * SCREEN_WIDTH + x;
-		int width = image->pixel_w * (iy-1);
+		const int r = color & 0xff;
+		const int g = (color & 0xff00) >> 8;
+		const int b = (color & 0xff0000) >> 16;
+		src = image->content + ((iy * image->pixel_w + ix));
+		dst = (char*) (buf + y * SCREEN_WIDTH + x);
+		char * src_line = src;
+		char * dst_line = dst;
 		for(int i=0;i<h;i++){
-			buf += SCREEN_WIDTH;
-			width += image->pixel_w;
+			src_line = src;
+			dst_line = dst;
 			for(int j=0;j<w;j++){
-				colord = (char*)(buf+j);
-				temp = image->content+width+ix+j;
-				unsigned char alpha = *temp;
+				unsigned char alpha = *(src_line);
 				switch (alpha){
 				case 0: break;
 				case 255:
-					colord[0] = r;
-					colord[1] = g;
-					colord[2] = b;
+					*(dst_line) = r;
+					*(dst_line+1) = g;
+					*(dst_line+2) = b;
 					break;
 				default:
-					colord[0] += (((r - colord[0]) * alpha) >> 8);
-					colord[1] += (((g- colord[1]) * alpha) >> 8);
-					colord[2] += (((b - colord[2]) * alpha) >> 8);
+					*(dst_line) += (((r - *(dst_line)) * alpha) >> 8);
+					*(dst_line+1) += (((g - *(dst_line+1)) * alpha) >> 8);
+					*(dst_line+2) += (((b - *(dst_line+2)) * alpha) >> 8);
 				}
+			    dst_line += 4;
+				src_line += 1;
 			}
+		src += (image->pixel_w);
+		dst += (SCREEN_WIDTH  << 2);
 		}
 		return;
 	}

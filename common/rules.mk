@@ -3,8 +3,8 @@ CROSS_COMPILE:=~/data/gcc-arm-9.2-2019.12-x86_64-aarch64-none-linux-gnu/bin/aarc
 
 CC:=$(CROSS_COMPILE)gcc
 
-CFLAGS:=-Wall -O2
-LDFLAGS:=-Wall
+CFLAGS:=-Wall -O3
+LDFLAGS:=-Wall -O3
 
 INCLUDE := -I../common/external/include
 LIB := -L../common/external/lib -ljpeg -lfreetype -lpng -lasound -lz -lc -lm
